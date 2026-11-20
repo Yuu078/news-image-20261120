@@ -1,37 +1,47 @@
-// The World in One Day — entry program for make.fun news-image-20261120.
+// THE DAILY ATLAS — entrypoint for news-image-20261120.
 //
-// The poster is drawn ahead of time (poster.html, rendered by
-// render_poster.py) and committed to this repository as entry.png.
-// This program's whole job is to deliver those exact bytes to the
-// output directory the grader names, unchanged, every run.
+// The finished poster ships in this repository as entry.png: a single
+// 1024x1024 page drawn from poster.html (see render_poster.py, which
+// screenshots the HTML with headless Chromium at authoring time and
+// crops it to size). At grading time there is no browser and no image
+// library in the runtime, so this program's whole job is to place that
+// committed page into the output directory — after checking it really
+// is the PNG the rules ask for: right signature, right dimensions,
+// within the 1 MiB cap.
 
-import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-const MAX_BYTES = 1_048_576;
+const MAX_BYTES = 1024 * 1024; // the rules cap the entry image at 1 MiB
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-function outDir(): string {
-  // The grader sets MAKEFUN_OUTPUT_DIR; /output is the documented home.
-  return process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+function fail(message: string): never {
+  console.error(`entry: ${message}`);
+  process.exit(1);
 }
 
-function main(): void {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const source = join(here, "entry.png");
-  const bytes = readFileSync(source);
+const here = dirname(fileURLToPath(import.meta.url));
+const source = readFileSync(join(here, "entry.png"));
 
-  const isPng = PNG_SIGNATURE.every((b, i) => bytes[i] === b);
-  if (!isPng) throw new Error("entry.png does not start with a PNG signature");
-  if (bytes.length > MAX_BYTES) {
-    throw new Error("entry.png exceeds the 1 MiB cap");
-  }
-
-  const target = join(outDir(), "entry.png");
-  mkdirSync(dirname(target), { recursive: true });
-  copyFileSync(source, target);
-  console.log(`wrote ${target} (${bytes.length} bytes)`);
+// Signature first: a renamed JPEG must not slip through as a "PNG".
+if (source.length < PNG_MAGIC.length || !PNG_MAGIC.every((b, i) => source[i] === b)) {
+  fail("entry.png does not start with the PNG signature");
+}
+if (source.length > MAX_BYTES) {
+  fail(`entry.png is ${source.length} bytes, over the 1 MiB cap`);
 }
 
-main();
+// The IHDR chunk follows the signature: width and height are the two
+// big-endian uint32s at offsets 16 and 20.
+const width = source.readUInt32BE(16);
+const height = source.readUInt32BE(20);
+if (width > 1024 || height > 1024) {
+  fail(`entry.png is ${width}x${height}, over the 1024x1024 cap`);
+}
+
+const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+mkdirSync(outDir, { recursive: true });
+const target = join(outDir, "entry.png");
+writeFileSync(target, source);
+console.log(`wrote ${target} (${source.length} bytes, ${width}x${height})`);
