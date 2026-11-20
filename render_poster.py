@@ -77,16 +77,14 @@ def main():
         navy = sum(
             1
             for x in range(30, 994)
-            for y in range(30, 60)
-            if abs(px[x, y][0] - 16) < 25
-            and abs(px[x, y][1] - 38) < 25
-            and abs(px[x, y][2] - 78) < 30
+            for y in range(30, 90)
+            if px[x, y][0] < 60 and px[x, y][1] < 60 and px[x, y][2] < 60
         )
     nbytes = os.path.getsize(PNG)
-    print(f"entry.png: {size[0]}x{size[1]}, {nbytes} bytes, masthead navy px: {navy}")
+    print(f"entry.png: {size[0]}x{size[1]}, {nbytes} bytes, masthead ink px: {navy}")
     assert size == (1024, 1024), "poster must be exactly 1024x1024"
     assert nbytes <= CAP_BYTES, "poster exceeds the 1 MiB cap"
-    assert navy > 5000, "masthead band not found — render may be clipped"
+    assert navy > 5000, "masthead ink not found — render may be clipped"
 
     with Image.open(PNG) as img:
         img.resize((512, 512), Image.LANCZOS).save(PREVIEW)
